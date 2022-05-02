@@ -24,7 +24,7 @@ function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
   error: Err | undefined;
   origin: string | undefined;
   state: {
-    state: State;
+    state: StateType;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;
@@ -77,7 +77,7 @@ function useCaseState<Res, Err, P, O extends CaseOptions>(
   error: Err | undefined;
   origin: string | undefined;
   state: {
-    state: State;
+    state: StateType;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;
@@ -159,7 +159,7 @@ Monitoring of the state of the async function call, with the result and error va
 ```typescript
 function useState<R, E>(): {
   state: {
-    state: State;
+    state: StateType;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;

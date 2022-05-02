@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useMemo, Reducer } from 'react';
 
-export enum State {
+export enum StateType {
   INITIAL = 'INITIAL',
   PENDING = 'PENDING',
   RESOLVED = 'RESOLVED',
@@ -9,14 +9,14 @@ export enum State {
 
 type ReducerState<R, E> = {
   origin?: string; // identification of the value/error source
-  state: State;
+  state: StateType;
   value?: R;
   error?: E;
 };
 
 const initialState = {
   origin: undefined,
-  state: State.INITIAL,
+  state: StateType.INITIAL,
   value: undefined,
   error: undefined,
 };
@@ -54,7 +54,7 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
     case ActionType.START:
       return {
         ...state,
-        state: State.PENDING,
+        state: StateType.PENDING,
         origin: action.origin,
         // the value and error remain unchanged
       };
@@ -62,7 +62,7 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
     case ActionType.RESOLVE:
       return {
         ...state,
-        state: State.RESOLVED,
+        state: StateType.RESOLVED,
         value: action.payload,
         error: undefined,
         origin: action.origin,
@@ -71,7 +71,7 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
     case ActionType.REJECT:
       return {
         ...state,
-        state: State.REJECTED,
+        state: StateType.REJECTED,
         value: undefined,
         error: action.payload,
         origin: action.origin,
@@ -117,11 +117,11 @@ export function useAsyncState<R, E>() {
   const statePack = useMemo(() => {
     return {
       state,
-      isInitial: state === State.INITIAL,
-      isPending: state === State.PENDING,
-      isResolved: state === State.RESOLVED,
-      isRejected: state === State.REJECTED,
-      isFinished: state === State.RESOLVED || state === State.REJECTED,
+      isInitial: state === StateType.INITIAL,
+      isPending: state === StateType.PENDING,
+      isResolved: state === StateType.RESOLVED,
+      isRejected: state === StateType.REJECTED,
+      isFinished: state === StateType.RESOLVED || state === StateType.REJECTED,
     };
   }, [state]);
 
