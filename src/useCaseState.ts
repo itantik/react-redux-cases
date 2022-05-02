@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { Case, CaseOptions, useCase } from './useCase';
-import { useStatus } from './useStatus';
+import { useAsyncState } from './useAsyncState';
 
-export function useCaseStatus<Res, Err, P, O extends CaseOptions>(
+export function useCaseState<Res, Err, P, O extends CaseOptions>(
   caseFn: Case<Res, Err, P, O>,
   options: O,
   origin?: string,
@@ -15,9 +15,9 @@ export function useCaseStatus<Res, Err, P, O extends CaseOptions>(
     resolve,
     value,
     error,
-    origin: statusOrigin,
-    status,
-  } = useStatus<Res, Err>();
+    origin: stateOrigin,
+    state,
+  } = useAsyncState<Res, Err>();
 
   const run = useCallback(
     async (runParams: P) => {
@@ -33,5 +33,5 @@ export function useCaseStatus<Res, Err, P, O extends CaseOptions>(
     [origin, reject, resolve, runCase, start],
   );
 
-  return { value, error, origin: statusOrigin, status, run };
+  return { value, error, origin: stateOrigin, state, run };
 }

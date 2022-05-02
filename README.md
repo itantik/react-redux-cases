@@ -10,12 +10,12 @@ Requires `react-redux`.
 
 ## API
 
-### useReduxCaseStatus
+### useReduxCaseState
 
-Creates a `run` callback for dispatching a case along with the result and status object.
+Creates a `run` callback for dispatching a case along with the result and state object.
 
 ```typescript
-function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
+function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
   caseFn: ReduxCase<Res, Err, S, P, O>,
   options: O,
   origin?: string,
@@ -23,8 +23,8 @@ function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
   value: Res | undefined;
   error: Err | undefined;
   origin: string | undefined;
-  status: {
-    status: Status;
+  state: {
+    state: State;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;
@@ -35,7 +35,7 @@ function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
 };
 ```
 
-`ReduxCase` obtains the redux dispatch and getState functions with additional arguments. `useReduxCaseStatus` passes all arguments to the case function. `runParams` comes from the `run` function.
+`ReduxCase` obtains the redux dispatch and getState functions with additional arguments. `useReduxCaseState` passes all arguments to the case function. `runParams` comes from the `run` function.
 
 ```typescript
 declare type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
@@ -49,7 +49,7 @@ declare type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
 
 ### useReduxCase
 
-Creates a `run` callback for dispatching a case. It is a `useReduxCaseStatus` variant without status monitoring.
+Creates a `run` callback for dispatching a case. It is a `useReduxCaseState` variant without state monitoring.
 
 ```typescript
 function useReduxCase<Res, Err, S, P, O extends CaseOptions, Ex>(
@@ -63,12 +63,12 @@ function useReduxCase<Res, Err, S, P, O extends CaseOptions, Ex>(
 type CaseResult<Res, Err> = Promise<Result<Res, Err>> | Result<Res, Err>;
 ```
 
-### useCaseStatus
+### useCaseState
 
-Creates a `run` callback along with the result and status object. This is a general async case that does not use redux.
+Creates a `run` callback along with the result and state object. This is a general async case that does not use redux.
 
 ```typescript
-function useCaseStatus<Res, Err, P, O extends CaseOptions>(
+function useCaseState<Res, Err, P, O extends CaseOptions>(
   caseFn: Case<Res, Err, P, O>,
   options: O,
   origin?: string,
@@ -76,8 +76,8 @@ function useCaseStatus<Res, Err, P, O extends CaseOptions>(
   value: Res | undefined;
   error: Err | undefined;
   origin: string | undefined;
-  status: {
-    status: Status;
+  state: {
+    state: State;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;
@@ -98,7 +98,7 @@ type Case<Res, Err, P, O extends CaseOptions> = (
 
 ### useCase
 
-Creates a `run` callback. It is a `useCaseStatus` variant without status monitoring.
+Creates a `run` callback. It is a `useCaseState` variant without state monitoring.
 
 ```typescript
 function useCase<Res, Err, P, O extends CaseOptions>(
@@ -152,14 +152,14 @@ if (result.isErr()) {
 }
 ```
 
-### useStatus
+### useState
 
-Monitoring of the status of the async function call, with the result and error value and the origin identifier.
+Monitoring of the state of the async function call, with the result and error value and the origin identifier.
 
 ```typescript
-function useStatus<R, E>(): {
-  status: {
-    status: Status;
+function useState<R, E>(): {
+  state: {
+    state: State;
     isInitial: boolean;
     isPending: boolean;
     isResolved: boolean;

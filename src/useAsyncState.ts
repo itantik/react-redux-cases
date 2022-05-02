@@ -1,22 +1,22 @@
 import { useReducer, useCallback, useMemo, Reducer } from 'react';
 
-export enum Status {
+export enum State {
   INITIAL = 'INITIAL',
   PENDING = 'PENDING',
   RESOLVED = 'RESOLVED',
   REJECTED = 'REJECTED',
 }
 
-type State<R, E> = {
+type ReducerState<R, E> = {
   origin?: string; // identification of the value/error source
-  status: Status;
+  state: State;
   value?: R;
   error?: E;
 };
 
 const initialState = {
   origin: undefined,
-  status: Status.INITIAL,
+  state: State.INITIAL,
   value: undefined,
   error: undefined,
 };
@@ -47,14 +47,14 @@ type Action<R, E> =
       type: ActionType.RESET;
     };
 
-const reducer = <R, E>(state: State<R, E>, action: Action<R, E>) => {
+const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
   const { type } = action;
 
   switch (type) {
     case ActionType.START:
       return {
         ...state,
-        status: Status.PENDING,
+        state: State.PENDING,
         origin: action.origin,
         // the value and error remain unchanged
       };
@@ -62,7 +62,7 @@ const reducer = <R, E>(state: State<R, E>, action: Action<R, E>) => {
     case ActionType.RESOLVE:
       return {
         ...state,
-        status: Status.RESOLVED,
+        state: State.RESOLVED,
         value: action.payload,
         error: undefined,
         origin: action.origin,
@@ -71,7 +71,7 @@ const reducer = <R, E>(state: State<R, E>, action: Action<R, E>) => {
     case ActionType.REJECT:
       return {
         ...state,
-        status: Status.REJECTED,
+        state: State.REJECTED,
         value: undefined,
         error: action.payload,
         origin: action.origin,
@@ -87,8 +87,8 @@ const reducer = <R, E>(state: State<R, E>, action: Action<R, E>) => {
   }
 };
 
-export function useStatus<R, E>() {
-  const [reducerState, dispatch] = useReducer<Reducer<State<R, E>, Action<R, E>>>(
+export function useAsyncState<R, E>() {
+  const [reducerState, dispatch] = useReducer<Reducer<ReducerState<R, E>, Action<R, E>>>(
     reducer,
     initialState,
   );
@@ -112,21 +112,21 @@ export function useStatus<R, E>() {
     dispatch({ type: ActionType.RESET });
   }, []);
 
-  const { origin, status, value, error } = reducerState;
+  const { origin, state, value, error } = reducerState;
 
-  const statusPack = useMemo(() => {
+  const statePack = useMemo(() => {
     return {
-      status,
-      isInitial: status === Status.INITIAL,
-      isPending: status === Status.PENDING,
-      isResolved: status === Status.RESOLVED,
-      isRejected: status === Status.REJECTED,
-      isFinished: status === Status.RESOLVED || status === Status.REJECTED,
+      state,
+      isInitial: state === State.INITIAL,
+      isPending: state === State.PENDING,
+      isResolved: state === State.RESOLVED,
+      isRejected: state === State.REJECTED,
+      isFinished: state === State.RESOLVED || state === State.REJECTED,
     };
-  }, [status]);
+  }, [state]);
 
   return {
-    status: statusPack,
+    state: statePack,
     origin,
     value,
     error,

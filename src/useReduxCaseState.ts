@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { CaseOptions } from './useCase';
-import { useStatus } from './useStatus';
+import { useAsyncState } from './useAsyncState';
 import { ReduxCase, useReduxCase } from './useReduxCase';
 
-export function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
+export function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
   caseFn: ReduxCase<Res, Err, S, P, O>,
   options: O,
   origin?: string,
@@ -16,9 +16,9 @@ export function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
     resolve,
     value,
     error,
-    origin: statusOrigin,
-    status,
-  } = useStatus<Res, Err>();
+    origin: stateOrigin,
+    state,
+  } = useAsyncState<Res, Err>();
 
   const run = useCallback(
     async (runParams: P) => {
@@ -34,5 +34,5 @@ export function useReduxCaseStatus<Res, Err, S, P, O extends CaseOptions>(
     [origin, reject, resolve, runReduxCase, start],
   );
 
-  return { value, error, origin: statusOrigin, status, run };
+  return { value, error, origin: stateOrigin, state, run };
 }
