@@ -152,12 +152,12 @@ if (result.isErr()) {
 }
 ```
 
-### useState
+### useAsyncState
 
 Monitoring of the state of the async function call, with the result and error value and the origin identifier.
 
 ```typescript
-function useState<R, E>(): {
+function useAsyncState<R, E>(): {
   state: {
     state: StateType;
     isInitial: boolean;
