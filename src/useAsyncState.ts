@@ -7,10 +7,10 @@ export enum StateType {
   REJECTED = 'REJECTED',
 }
 
-type ReducerState<R, E> = {
+type ReducerState<V, E> = {
   origin?: string; // identification of the value/error source
   state: StateType;
-  value?: R;
+  value?: V;
   error?: E;
 };
 
@@ -28,7 +28,7 @@ enum ActionType {
   RESET = 'RESET',
 }
 
-type Action<R, E> =
+type Action<V, E> =
   | {
       type: ActionType.START;
       origin?: string;
@@ -36,18 +36,18 @@ type Action<R, E> =
   | {
       origin?: string;
       type: ActionType.RESOLVE;
-      payload?: R;
+      value?: V;
     }
   | {
       origin?: string;
       type: ActionType.REJECT;
-      payload?: E;
+      error?: E;
     }
   | {
       type: ActionType.RESET;
     };
 
-const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
+const reducer = <V, E>(state: ReducerState<V, E>, action: Action<V, E>) => {
   const { type } = action;
 
   switch (type) {
@@ -63,9 +63,10 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
       return {
         ...state,
         state: StateType.RESOLVED,
-        value: action.payload,
+        value: action.value,
         error: undefined,
-        origin: action.origin,
+        // keep state.origin when action.origin is undefined
+        origin: action.origin ?? state.origin,
       };
 
     case ActionType.REJECT:
@@ -73,8 +74,9 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
         ...state,
         state: StateType.REJECTED,
         value: undefined,
-        error: action.payload,
-        origin: action.origin,
+        error: action.error,
+        // keep state.origin when action.origin is undefined
+        origin: action.origin ?? state.origin,
       };
 
     case ActionType.RESET:
@@ -87,8 +89,8 @@ const reducer = <R, E>(state: ReducerState<R, E>, action: Action<R, E>) => {
   }
 };
 
-export function useAsyncState<R, E>() {
-  const [reducerState, dispatch] = useReducer<Reducer<ReducerState<R, E>, Action<R, E>>>(
+export function useAsyncState<V, E>() {
+  const [reducerState, dispatch] = useReducer<Reducer<ReducerState<V, E>, Action<V, E>>>(
     reducer,
     initialState,
   );
@@ -97,12 +99,18 @@ export function useAsyncState<R, E>() {
     dispatch({ type: ActionType.START, origin });
   }, []);
 
-  const resolve = useCallback((value: R, origin?: string) => {
-    dispatch({ type: ActionType.RESOLVE, payload: value, origin });
+  /**
+   * Sets new state value. Keeps state.origin when origin is undefined.
+   */
+  const resolve = useCallback((value: V, origin?: string) => {
+    dispatch({ type: ActionType.RESOLVE, value, origin });
   }, []);
 
+  /**
+   * Sets new state error. Keeps state.origin when origin is undefined.
+   */
   const reject = useCallback((error: E, origin?: string) => {
-    dispatch({ type: ActionType.REJECT, payload: error, origin });
+    dispatch({ type: ActionType.REJECT, error, origin });
   }, []);
 
   /**
@@ -130,7 +138,7 @@ export function useAsyncState<R, E>() {
     origin,
     value,
     error,
-    // actions
+    // actions:
     start,
     resolve,
     reject,

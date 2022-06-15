@@ -26,13 +26,13 @@ export function useReduxCase<Res, Err, S, P, O extends CaseOptions>(
   });
 
   return useCallback(
-    (runParams: P) => {
+    (runParams: P, runOrigin?: string) => {
       return caseFn(
         dispatch,
         getState,
         runParams,
         optionsRef.current ? { ...optionsRef.current } : optionsRef.current,
-        origin,
+        runOrigin || origin,
       );
     },
     [caseFn, dispatch, getState, origin],

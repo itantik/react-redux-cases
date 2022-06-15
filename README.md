@@ -1,12 +1,144 @@
 # react-redux-cases
 
-Separating async business logic from user interface in React applications. Especially in those that use Redux.
+Separating async business logic from user interface in React applications. Especially in those that use [Redux](https://redux.js.org/).
 
 ## Installation
 
     $ npm install react-redux-cases
 
 Requires `react-redux`.
+
+## Example
+
+In this example, we will show a use-case that requires access to the redux store and async state watching.
+
+Imagine that an application displays a filtered list of user tasks. Our case is to get this list. The scenario may look like this:
+
+- get user id from redux store
+- get filter string from input
+- call REST API service
+- send response data to redux store
+- watch the state during this process
+
+### 1. Case Function
+
+In terms of the `react-redux-cases` library, the case is a separate function that covers one business logic.
+
+Case gets all the required dependencies: connection to redux store, options and `run` parameters. `dispatch`, `getState` and `options` come from the `useReduxCaseState` hook. `runParams` comes from the `run` function. `origin` comes from the `run` function or the `useReduxCaseState` hook.
+
+Let's make our case function:
+
+```typescript
+async function loadTodoListCase(
+  dispatch: AppDispatch,
+  getState: AppGetState,
+  runParams: {
+    filter: string;
+  },
+  options: {},
+  origin?: string,
+) {
+  // get values from run params
+  const { filter } = runParams;
+
+  // get values from redux store
+  const state = getState();
+  const userId = state.user.id;
+
+  // call API
+  const result = await getTodoList(userId, filter, origin);
+
+  if (result.isOk()) {
+    // dispatch a redux action
+    dispatch(updateTodoList(result.value));
+  }
+
+  return result;
+}
+```
+
+Example of API function:
+
+```typescript
+async function getTodoList(userId: string, filter: string, origin?: string) {
+  try {
+    const response: Awaited<AxiosResponse<Todo[]>> = await axios({
+      url: 'user-list',
+      params: { userId, filter },
+    });
+    return ok(response.data, origin);
+  } catch (e) {
+    return err(e, origin);
+  }
+}
+```
+
+The function returns the `Result` object.
+
+A real application may call API services with its own perfectly tuned function. In this case, we can pass this helper function in the `options` parameter.
+
+### 2. Connection With a Component
+
+We will use one of the prepared hooks. We can choose from four hooks depending on whether we need access to redux store and/or watch the state of the async process. In this example, we need both.
+
+```typescript
+function useLoadTodoList() {
+  return useReduxCaseState(loadTodoListCase, {});
+}
+```
+
+Moreover, if the case requires it, we can pass additional values via the second parameter.
+
+The `useReduxCaseState` hook wraps our case, passes everything it needs and returns a state object:
+
+- `value` - a data from API response; undefined if not resolved
+- `error` - an error; undefined if not rejected
+- `origin` - identification of the place from which the request originated; it comes from the case, if we defined it
+- `state`:
+  - `state` - `StateType`
+  - `isInitial` - the case has not yet started
+  - `isPending` - the case has been started
+  - `isResolved` - the case was successfully resolved
+  - `isRejected` - the case failed
+  - `isFinished` - the case is finished, i.e. isResolved or isRejected
+- `run` - this function is used by the component or other hooks to call the case
+
+### 3. Use in Component
+
+Simplified component:
+
+```typescript
+// in this example, list data comes from redux store
+const TodoList = ({ list }: { list: Todo[] }) => {
+  const { run, error, state } = useLoadTodoList();
+  const { isPending, isRejected } = state;
+
+  const [filter, setFilter] = useState('');
+
+  const handleChangeFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newFilter = e.target.value;
+    setFilter(newFilter);
+    // run our case
+    run({ filter: newFilter });
+  };
+
+  return (
+    <>
+      <div>
+        <label>
+          Filter:
+          <input type="text" name="filter" value={filter} onChange={handleChangeFilter} />
+        </label>
+      </div>
+
+      {isPending && <div>Loading...</div>}
+      {isRejected && <div>Loading failed: {String(error)}</div>}
+
+      <List list={list}>
+    </>
+  );
+};
+```
 
 ## API
 
@@ -31,11 +163,11 @@ function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
     isRejected: boolean;
     isFinished: boolean;
   };
-  run: (runParams: P) => Promise<Result<Res, Err>>;
+  run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
 };
 ```
 
-`ReduxCase` obtains the redux dispatch and getState functions with additional arguments. `useReduxCaseState` passes all arguments to the case function. `runParams` comes from the `run` function.
+`ReduxCase` obtains the redux `dispatch` and `getState` functions with additional arguments. `useReduxCaseState` passes all arguments to the case function. `runParams` comes from the `run` function.
 
 ```typescript
 declare type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
@@ -56,7 +188,7 @@ function useReduxCase<Res, Err, S, P, O extends CaseOptions, Ex>(
   caseFn: ReduxCase<Res, Err, S, P, O, Ex>,
   options: O,
   origin?: string,
-): (runParams: P) => CaseResult<Res, Err>;
+): (runParams: P, runOrigin?: string) => CaseResult<Res, Err>;
 ```
 
 ```typescript
@@ -84,7 +216,7 @@ function useCaseState<Res, Err, P, O extends CaseOptions>(
     isRejected: boolean;
     isFinished: boolean;
   };
-  run: (runParams: P) => Promise<Result<Res, Err>>;
+  run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
 };
 ```
 
@@ -105,7 +237,7 @@ function useCase<Res, Err, P, O extends CaseOptions>(
   caseFn: Case<Res, Err, P, O>,
   options: O,
   origin?: string,
-): (runParams: P) => CaseResult<Res, Err>;
+): (runParams: P, runOrigin?: string) => CaseResult<Res, Err>;
 ```
 
 ### Result
@@ -113,7 +245,7 @@ function useCase<Res, Err, P, O extends CaseOptions>(
 Union object of the result value or error.
 
 ```typescript
-type Result<R, E> = Ok<R, E> | Err<R, E>;
+type Result<V, E> = Ok<V, E> | Err<V, E>;
 ```
 
 _Examples:_
@@ -157,7 +289,7 @@ if (result.isErr()) {
 Monitoring of the state of the async function call, with the result and error value and the origin identifier.
 
 ```typescript
-function useAsyncState<R, E>(): {
+function useAsyncState<V, E>(): {
   state: {
     state: StateType;
     isInitial: boolean;
@@ -167,11 +299,11 @@ function useAsyncState<R, E>(): {
     isFinished: boolean;
   };
   origin: string | undefined;
-  value: R | undefined;
+  value: V | undefined;
   error: E | undefined;
-  start: (origin?: string | undefined) => void;
-  resolve: (value: R, origin?: string | undefined) => void;
-  reject: (error: E, origin?: string | undefined) => void;
+  start: (origin?: string) => void;
+  resolve: (value: V, origin?: string) => void;
+  reject: (error: E, origin?: string) => void;
   reset: () => void;
 };
 ```

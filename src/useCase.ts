@@ -22,11 +22,11 @@ export function useCase<Res, Err, P, O extends CaseOptions>(
   });
 
   return useCallback(
-    (runParams: P) => {
+    (runParams: P, runOrigin?: string) => {
       return caseFn(
         runParams,
         optionsRef.current ? { ...optionsRef.current } : optionsRef.current,
-        origin,
+        runOrigin || origin,
       );
     },
     [caseFn, origin],

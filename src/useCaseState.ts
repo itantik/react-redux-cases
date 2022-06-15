@@ -20,9 +20,10 @@ export function useCaseState<Res, Err, P, O extends CaseOptions>(
   } = useAsyncState<Res, Err>();
 
   const run = useCallback(
-    async (runParams: P) => {
-      start(origin);
-      const result = await runCase(runParams);
+    async (runParams: P, runOrigin?: string) => {
+      const caseOrigin = runOrigin || origin;
+      start(caseOrigin);
+      const result = await runCase(runParams, caseOrigin);
       if (result.isErr()) {
         reject(result.error, result.origin);
       } else {
