@@ -16,14 +16,14 @@ test('useAsyncState initial state', () => {
   expect(result.current.value).toBeUndefined();
   expect(result.current.error).toBeUndefined();
   expect(result.current.origin).toBeUndefined();
-  expect(typeof result.current.start).toBe('function');
-  expect(typeof result.current.resolve).toBe('function');
-  expect(typeof result.current.reject).toBe('function');
-  expect(typeof result.current.reset).toBe('function');
+  expect(typeof result.current.actions.start).toBe('function');
+  expect(typeof result.current.actions.resolve).toBe('function');
+  expect(typeof result.current.actions.reject).toBe('function');
+  expect(typeof result.current.actions.reset).toBe('function');
 
   act(() => {
     // async state started without origin
-    result.current.start();
+    result.current.actions.start();
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.PENDING,
@@ -39,7 +39,7 @@ test('useAsyncState initial state', () => {
 
   act(() => {
     // async state started with origin
-    result.current.start('state origin');
+    result.current.actions.start('state origin');
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.PENDING,
@@ -57,7 +57,7 @@ test('useAsyncState initial state', () => {
   };
   act(() => {
     // async state resolved with value, without origin
-    result.current.resolve(value);
+    result.current.actions.resolve(value);
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.RESOLVED,
@@ -74,7 +74,7 @@ test('useAsyncState initial state', () => {
   const err = new Error('It failed');
   act(() => {
     // async state rejected with error, without origin
-    result.current.reject(err);
+    result.current.actions.reject(err);
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.REJECTED,
@@ -90,7 +90,7 @@ test('useAsyncState initial state', () => {
 
   act(() => {
     // async state resolved with value and origin
-    result.current.resolve(value, 'resolved origin');
+    result.current.actions.resolve(value, 'resolved origin');
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.RESOLVED,
@@ -106,7 +106,7 @@ test('useAsyncState initial state', () => {
 
   act(() => {
     // async state rejected with error and origin
-    result.current.reject(err, 'rejected origin');
+    result.current.actions.reject(err, 'rejected origin');
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.REJECTED,
@@ -122,7 +122,7 @@ test('useAsyncState initial state', () => {
 
   act(() => {
     // async state reset to initial state
-    result.current.reset();
+    result.current.actions.reset();
   });
   expect(result.current.state).toStrictEqual({
     state: StateType.INITIAL,

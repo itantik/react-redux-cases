@@ -122,7 +122,7 @@ export function useAsyncState<V, E>() {
 
   const { origin, state, value, error } = reducerState;
 
-  const statePack = useMemo(() => {
+  const stateMemo = useMemo(() => {
     return {
       state,
       isInitial: state === StateType.INITIAL,
@@ -133,15 +133,20 @@ export function useAsyncState<V, E>() {
     };
   }, [state]);
 
+  const actionsMemo = useMemo(() => {
+    return {
+      start,
+      resolve,
+      reject,
+      reset,
+    };
+  }, [reject, reset, resolve, start]);
+
   return {
-    state: statePack,
+    state: stateMemo,
+    actions: actionsMemo,
     origin,
     value,
     error,
-    // actions:
-    start,
-    resolve,
-    reject,
-    reset,
   };
 }

@@ -101,6 +101,11 @@ The `useReduxCaseState` hook wraps our case, passes everything it needs and retu
   - `isResolved` - the case was successfully resolved
   - `isRejected` - the case failed
   - `isFinished` - the case is finished, i.e. isResolved or isRejected
+- `actions`: sets the state but does not call the case function
+  - `start` - sets the state to pending
+  - `resolve` - sets the state to resolved and saves the result value
+  - `reject` - sets the state to rejected and saves the error
+  - `reset` - sets the state to initial and resets both the result and the error value
 - `run` - this function is used by the component or other hooks to call the case
 
 ### 3. Use in Component
@@ -163,6 +168,12 @@ function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
     isRejected: boolean;
     isFinished: boolean;
   };
+  actions: {
+    start: (origin?: string) => void;
+    resolve: (value: Res, origin?: string) => void;
+    reject: (error: Err, origin?: string) => void;
+    reset: () => void;
+  };
   run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
 };
 ```
@@ -215,6 +226,12 @@ function useCaseState<Res, Err, P, O extends CaseOptions>(
     isResolved: boolean;
     isRejected: boolean;
     isFinished: boolean;
+  };
+  actions: {
+    start: (origin?: string) => void;
+    resolve: (value: Res, origin?: string) => void;
+    reject: (error: Err, origin?: string) => void;
+    reset: () => void;
   };
   run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
 };
@@ -298,13 +315,15 @@ function useAsyncState<V, E>(): {
     isRejected: boolean;
     isFinished: boolean;
   };
+  actions: {
+    start: (origin?: string) => void;
+    resolve: (value: V, origin?: string) => void;
+    reject: (error: E, origin?: string) => void;
+    reset: () => void;
+  };
   origin: string | undefined;
   value: V | undefined;
   error: E | undefined;
-  start: (origin?: string) => void;
-  resolve: (value: V, origin?: string) => void;
-  reject: (error: E, origin?: string) => void;
-  reset: () => void;
 };
 ```
 

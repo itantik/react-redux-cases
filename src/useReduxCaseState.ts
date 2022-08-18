@@ -10,15 +10,8 @@ export function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
 ) {
   const runReduxCase = useReduxCase(caseFn, options, origin);
 
-  const {
-    start,
-    reject,
-    resolve,
-    value,
-    error,
-    origin: stateOrigin,
-    state,
-  } = useAsyncState<Res, Err>();
+  const { value, error, origin: stateOrigin, state, actions } = useAsyncState<Res, Err>();
+  const { start, reject, resolve } = actions;
 
   const run = useCallback(
     async (runParams: P, runOrigin?: string) => {
@@ -35,5 +28,5 @@ export function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
     [origin, reject, resolve, runReduxCase, start],
   );
 
-  return { value, error, origin: stateOrigin, state, run };
+  return { value, error, origin: stateOrigin, state, actions, run };
 }
