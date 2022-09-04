@@ -1,7 +1,7 @@
 {
   "name": "react-redux-cases",
   "description": "Separating async business logic from user interface in React applications.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "Stanislav Antoš",
   "license": "MIT",
   "repository": {

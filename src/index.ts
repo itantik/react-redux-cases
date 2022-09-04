@@ -4,3 +4,7 @@ export * from './useCase';
 export * from './useCaseState';
 export * from './useReduxCase';
 export * from './useReduxCaseState';
+export * from './useObjCase';
+export * from './useObjCaseState';
+export * from './useObjReduxCase';
+export * from './useObjReduxCaseState';

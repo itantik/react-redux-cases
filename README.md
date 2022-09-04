@@ -147,7 +147,9 @@ const TodoList = ({ list }: { list: Todo[] }) => {
 
 ## API
 
-### useReduxCaseState
+### Hooks for functional cases
+
+#### useReduxCaseState
 
 Creates a `run` callback for dispatching a case along with the result and state object.
 
@@ -190,7 +192,7 @@ declare type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
 ) => CaseResult<Res, Err>;
 ```
 
-### useReduxCase
+#### useReduxCase
 
 Creates a `run` callback for dispatching a case. It is a `useReduxCaseState` variant without state monitoring.
 
@@ -206,7 +208,7 @@ function useReduxCase<Res, Err, S, P, O extends CaseOptions, Ex>(
 type CaseResult<Res, Err> = Promise<Result<Res, Err>> | Result<Res, Err>;
 ```
 
-### useCaseState
+#### useCaseState
 
 Creates a `run` callback along with the result and state object. This is a general async case that does not use redux.
 
@@ -245,7 +247,7 @@ type Case<Res, Err, P, O extends CaseOptions> = (
 ) => CaseResult<Res, Err>;
 ```
 
-### useCase
+#### useCase
 
 Creates a `run` callback. It is a `useCaseState` variant without state monitoring.
 
@@ -255,6 +257,148 @@ function useCase<Res, Err, P, O extends CaseOptions>(
   options: O,
   origin?: string,
 ): (runParams: P, runOrigin?: string) => CaseResult<Res, Err>;
+```
+
+### Hooks for object cases
+
+Object case interface:
+
+```typescript
+interface ObjCase<Res, Err, P> {
+  execute(runParams: P, origin?: string): CaseResult<Res, Err>;
+}
+```
+
+Each `useObj*Case` hook creates a `run` callback that calls the `execute` method of the `ObjCase` instance.
+
+#### useObjReduxCaseState
+
+```typescript
+function useObjReduxCaseState<Res, Err, S, P>(
+  caseFactory: ReduxCaseFactory<Res, Err, S, P>,
+  origin?: string,
+): {
+  value: Res | undefined;
+  error: Err | undefined;
+  origin: string | undefined;
+  state: {
+    state: StateType;
+    isInitial: boolean;
+    isPending: boolean;
+    isResolved: boolean;
+    isRejected: boolean;
+    isFinished: boolean;
+  };
+  actions: {
+    start: (origin?: string | undefined) => void;
+    resolve: (value: Res, origin?: string | undefined) => void;
+    reject: (error: Err, origin?: string | undefined) => void;
+    reset: () => void;
+  };
+  run: (runParams: P, runOrigin?: string | undefined) => Promise<Result<Res, Err>>;
+};
+```
+
+`caseFactory` obtains the redux `dispatch` and `getState` functions and creates `ObjCase` object.
+
+```typescript
+declare type ReduxCaseFactory<Res, Err, S, P> = (
+  dispatch: Dispatch,
+  getState: () => S,
+) => ObjCase<Res, Err, P>;
+```
+
+#### useObjReduxCase
+
+Creates a `run` callback for dispatching a case. It is a `useObjReduxCaseState` variant without state monitoring.
+
+```typescript
+function useObjReduxCase<Res, Err, S, P>(
+  caseFactory: ReduxCaseFactory<Res, Err, S, P>,
+  origin?: string,
+): (runParams: P, runOrigin?: string | undefined) => CaseResult<Res, Err>;
+```
+
+#### useObjCaseState
+
+Creates a `run` callback along with the result and state object. This is a general async case that does not use redux.
+
+```typescript
+function useObjCaseState<Res, Err, P>(
+  caseFactory: CaseFactory<Res, Err, P>,
+  origin?: string,
+): {
+  value: Res | undefined;
+  error: Err | undefined;
+  origin: string | undefined;
+  state: {
+    state: StateType;
+    isInitial: boolean;
+    isPending: boolean;
+    isResolved: boolean;
+    isRejected: boolean;
+    isFinished: boolean;
+  };
+  actions: {
+    start: (origin?: string | undefined) => void;
+    resolve: (value: Res, origin?: string | undefined) => void;
+    reject: (error: Err, origin?: string | undefined) => void;
+    reset: () => void;
+  };
+  run: (runParams: P, runOrigin?: string | undefined) => Promise<Result<Res, Err>>;
+};
+```
+
+`caseFactory` creates `ObjCase` object.
+
+```typescript
+declare type CaseFactory<Res, Err, P> = () => ObjCase<Res, Err, P>;
+```
+
+#### useObjCase
+
+Creates a `run` callback. It is a `useObjCaseState` variant without state monitoring.
+
+```typescript
+function useObjCase<Res, Err, P>(
+  caseFactory: CaseFactory<Res, Err, P>,
+  origin?: string,
+): (runParams: P, runOrigin?: string | undefined) => CaseResult<Res, Err>;
+```
+
+##### Object case example
+
+```typescript
+// object case
+class SumObjCase {
+  constructor() {}
+
+  // case factory
+  static create() {
+    return new SumObjCase();
+  }
+
+  // case execution
+  execute(runParams: { numberA: number; numberB: number }, origin?: string) {
+    return ok(runParams.numberA + runParams.numberB, origin);
+  }
+}
+
+// component
+const SumComponent = () => {
+  const [numberA, setNumberA] = useState(0);
+  const [numberB, setNumberB] = useState(0);
+  const sum = useObjCase(SumObjCase.create);
+
+  const handleSum = () => {
+    const result = sum({ numberA, numberB });
+    if (result.isOk()) {
+      console.log(`Sum = ${result.value}`);
+    }
+  };
+
+  // ...
+};
 ```
 
 ### Result

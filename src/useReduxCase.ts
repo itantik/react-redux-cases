@@ -16,14 +16,12 @@ export function useReduxCase<Res, Err, S, P, O extends CaseOptions>(
   options: O,
   origin?: string,
 ) {
-  const store = useStore();
-  const dispatch = store.dispatch;
-  const getState = store.getState;
-
   const optionsRef = useRef(options);
   useEffect(() => {
     optionsRef.current = options;
   });
+
+  const { dispatch, getState } = useStore();
 
   return useCallback(
     (runParams: P, runOrigin?: string) => {
