@@ -4,6 +4,11 @@
   "version": "1.0.0",
   "author": "Stanislav Antoš",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itantik/react-redux-cases.git"
+  },
+  "homepage": "https://github.com/itantik/react-redux-cases",
   "type": "module",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
