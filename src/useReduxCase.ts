@@ -1,38 +1,34 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore } from 'react-redux';
 import { Dispatch } from 'redux';
-import { CaseOptions, CaseResult } from './useCase';
+import { useAbortable } from './useAbortable';
+import { Case } from './useCase';
 
-export type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
+export type ReduxCaseFactory<Res, Err, S, P> = (
   dispatch: Dispatch,
   getState: () => S,
-  runParams: P,
-  options: O,
-  origin?: string,
-) => CaseResult<Res, Err>;
+) => Case<Res, Err, P>;
 
-export function useReduxCase<Res, Err, S, P, O extends CaseOptions>(
-  caseFn: ReduxCase<Res, Err, S, P, O>,
-  options: O,
-  origin?: string,
-) {
-  const optionsRef = useRef(options);
+export function useReduxCase<Res, Err, S, P>(caseFactory: ReduxCaseFactory<Res, Err, S, P>) {
+  const factoryRef = useRef(caseFactory);
   useEffect(() => {
-    optionsRef.current = options;
+    factoryRef.current = caseFactory;
   });
 
-  const { dispatch, getState } = useStore();
+  const { watch, unwatch, abort } = useAbortable();
 
-  return useCallback(
-    (runParams: P, runOrigin?: string) => {
-      return caseFn(
-        dispatch,
-        getState,
-        runParams,
-        optionsRef.current ? { ...optionsRef.current } : optionsRef.current,
-        runOrigin || origin,
-      );
+  const { dispatch, getState } = useStore<S>();
+
+  const run = useCallback(
+    async (runParams: P) => {
+      const objCase = factoryRef.current(dispatch, getState);
+      watch(objCase);
+      const result = await objCase.execute(runParams);
+      unwatch(objCase);
+      return result;
     },
-    [caseFn, dispatch, getState, origin],
+    [dispatch, getState, unwatch, watch],
   );
+
+  return { run, abort };
 }

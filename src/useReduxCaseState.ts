@@ -1,32 +1,43 @@
-import { useCallback } from 'react';
-import { CaseOptions } from './useCase';
+import { useCallback, useEffect, useRef } from 'react';
+import { useStore } from 'react-redux';
+import { useAbortable } from './useAbortable';
 import { useAsyncState } from './useAsyncState';
-import { ReduxCase, useReduxCase } from './useReduxCase';
+import { ReduxCaseFactory } from './useReduxCase';
 
-export function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
-  caseFn: ReduxCase<Res, Err, S, P, O>,
-  options: O,
-  origin?: string,
-) {
-  const runReduxCase = useReduxCase(caseFn, options, origin);
+export function useReduxCaseState<Res, Err, S, P>(caseFactory: ReduxCaseFactory<Res, Err, S, P>) {
+  const factoryRef = useRef(caseFactory);
+  useEffect(() => {
+    factoryRef.current = caseFactory;
+  });
 
-  const { value, error, origin: stateOrigin, state, actions } = useAsyncState<Res, Err>();
+  const { watch, unwatch, watched, abort } = useAbortable();
+
+  const { dispatch, getState } = useStore<S>();
+
+  const { value, error, state, actions } = useAsyncState<Res, Err>();
   const { start, reject, resolve } = actions;
 
   const run = useCallback(
-    async (runParams: P, runOrigin?: string) => {
-      const caseOrigin = runOrigin || origin;
-      start(caseOrigin);
-      const result = await runReduxCase(runParams, caseOrigin);
-      if (result.isErr()) {
-        reject(result.error, result.origin);
-      } else {
-        resolve(result.value, result.origin);
+    async (runParams: P) => {
+      const objCase = factoryRef.current(dispatch, getState);
+      if (watch(objCase)) {
+        start();
+      }
+      const result = await objCase.execute(runParams);
+      const aborted = !watched(objCase);
+      unwatch(objCase);
+
+      if (!aborted) {
+        if (result.isErr()) {
+          reject(result.error);
+        } else {
+          resolve(result.value);
+        }
       }
       return result;
     },
-    [origin, reject, resolve, runReduxCase, start],
+    [dispatch, getState, reject, resolve, start, unwatch, watch, watched],
   );
 
-  return { value, error, origin: stateOrigin, state, actions, run };
+  return { value, error, state, actions, run, abort };
 }

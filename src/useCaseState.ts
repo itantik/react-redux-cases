@@ -1,31 +1,40 @@
-import { useCallback } from 'react';
-import { Case, CaseOptions, useCase } from './useCase';
+import { useCallback, useEffect, useRef } from 'react';
+import { useAbortable } from './useAbortable';
 import { useAsyncState } from './useAsyncState';
+import { CaseFactory } from './useCase';
 
-export function useCaseState<Res, Err, P, O extends CaseOptions>(
-  caseFn: Case<Res, Err, P, O>,
-  options: O,
-  origin?: string,
-) {
-  const runCase = useCase(caseFn, options, origin);
+export function useCaseState<Res, Err, P>(caseFactory: CaseFactory<Res, Err, P>) {
+  const factoryRef = useRef(caseFactory);
+  useEffect(() => {
+    factoryRef.current = caseFactory;
+  });
 
-  const { value, error, origin: stateOrigin, state, actions } = useAsyncState<Res, Err>();
+  const { watch, unwatch, watched, abort } = useAbortable();
+
+  const { value, error, state, actions } = useAsyncState<Res, Err>();
   const { start, reject, resolve } = actions;
 
   const run = useCallback(
-    async (runParams: P, runOrigin?: string) => {
-      const caseOrigin = runOrigin || origin;
-      start(caseOrigin);
-      const result = await runCase(runParams, caseOrigin);
-      if (result.isErr()) {
-        reject(result.error, result.origin);
-      } else {
-        resolve(result.value, result.origin);
+    async (runParams: P) => {
+      const objCase = factoryRef.current();
+      if (watch(objCase)) {
+        start();
+      }
+      const result = await objCase.execute(runParams);
+      const aborted = !watched(objCase);
+      unwatch(objCase);
+
+      if (!aborted) {
+        if (result.isErr()) {
+          reject(result.error);
+        } else {
+          resolve(result.value);
+        }
       }
       return result;
     },
-    [origin, reject, resolve, runCase, start],
+    [reject, resolve, start, unwatch, watch, watched],
   );
 
-  return { value, error, origin: stateOrigin, state, actions, run };
+  return { value, error, state, actions, run, abort };
 }

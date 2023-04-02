@@ -1,85 +1,76 @@
 import { useReducer, useCallback, useMemo, Reducer } from 'react';
 
-export enum StateType {
-  INITIAL = 'INITIAL',
-  PENDING = 'PENDING',
-  RESOLVED = 'RESOLVED',
-  REJECTED = 'REJECTED',
-}
+export const AsyncState = {
+  initial: 'initial',
+  pending: 'pending',
+  resolved: 'resolved',
+  rejected: 'rejected',
+} as const;
+export type AsyncStateType = (typeof AsyncState)[keyof typeof AsyncState];
 
 type ReducerState<V, E> = {
-  origin?: string; // identification of the value/error source
-  state: StateType;
+  state: AsyncStateType;
   value?: V;
   error?: E;
 };
 
 const initialState = {
-  origin: undefined,
-  state: StateType.INITIAL,
+  state: AsyncState.initial,
   value: undefined,
   error: undefined,
 };
 
-enum ActionType {
-  START = 'START',
-  RESOLVE = 'RESOLVE',
-  REJECT = 'REJECT',
-  RESET = 'RESET',
-}
+const ActionType = {
+  start: 'start',
+  resolve: 'resolve',
+  reject: 'reject',
+  reset: 'reset',
+} as const;
 
 type Action<V, E> =
   | {
-      type: ActionType.START;
-      origin?: string;
+      type: typeof ActionType.start;
     }
   | {
-      origin?: string;
-      type: ActionType.RESOLVE;
+      type: typeof ActionType.resolve;
       value?: V;
     }
   | {
-      origin?: string;
-      type: ActionType.REJECT;
+      type: typeof ActionType.reject;
       error?: E;
     }
   | {
-      type: ActionType.RESET;
+      type: typeof ActionType.reset;
     };
 
 const reducer = <V, E>(state: ReducerState<V, E>, action: Action<V, E>) => {
   const { type } = action;
 
   switch (type) {
-    case ActionType.START:
+    case ActionType.start:
       return {
         ...state,
-        state: StateType.PENDING,
-        origin: action.origin,
+        state: AsyncState.pending,
         // the value and error remain unchanged
       };
 
-    case ActionType.RESOLVE:
+    case ActionType.resolve:
       return {
         ...state,
-        state: StateType.RESOLVED,
+        state: AsyncState.resolved,
         value: action.value,
         error: undefined,
-        // keep state.origin when action.origin is undefined
-        origin: action.origin ?? state.origin,
       };
 
-    case ActionType.REJECT:
+    case ActionType.reject:
       return {
         ...state,
-        state: StateType.REJECTED,
+        state: AsyncState.rejected,
         value: undefined,
         error: action.error,
-        // keep state.origin when action.origin is undefined
-        origin: action.origin ?? state.origin,
       };
 
-    case ActionType.RESET:
+    case ActionType.reset:
       return {
         ...initialState,
       };
@@ -90,46 +81,45 @@ const reducer = <V, E>(state: ReducerState<V, E>, action: Action<V, E>) => {
 };
 
 export function useAsyncState<V, E>() {
-  const [reducerState, dispatch] = useReducer<Reducer<ReducerState<V, E>, Action<V, E>>>(
-    reducer,
-    initialState,
-  );
+  const [reducerState, dispatch] = useReducer<Reducer<ReducerState<V, E>, Action<V, E>>>(reducer, {
+    ...initialState,
+  });
 
-  const start = useCallback((origin?: string) => {
-    dispatch({ type: ActionType.START, origin });
+  const start = useCallback(() => {
+    dispatch({ type: ActionType.start });
   }, []);
 
   /**
-   * Sets new state value. Keeps state.origin when origin is undefined.
+   * Sets new state value.
    */
-  const resolve = useCallback((value: V, origin?: string) => {
-    dispatch({ type: ActionType.RESOLVE, value, origin });
+  const resolve = useCallback((value: V) => {
+    dispatch({ type: ActionType.resolve, value });
   }, []);
 
   /**
-   * Sets new state error. Keeps state.origin when origin is undefined.
+   * Sets new state error.
    */
-  const reject = useCallback((error: E, origin?: string) => {
-    dispatch({ type: ActionType.REJECT, error, origin });
+  const reject = useCallback((error: E) => {
+    dispatch({ type: ActionType.reject, error });
   }, []);
 
   /**
    * Resets to initial state, clears value and error.
    */
   const reset = useCallback(() => {
-    dispatch({ type: ActionType.RESET });
+    dispatch({ type: ActionType.reset });
   }, []);
 
-  const { origin, state, value, error } = reducerState;
+  const { state, value, error } = reducerState;
 
   const stateMemo = useMemo(() => {
     return {
       state,
-      isInitial: state === StateType.INITIAL,
-      isPending: state === StateType.PENDING,
-      isResolved: state === StateType.RESOLVED,
-      isRejected: state === StateType.REJECTED,
-      isFinished: state === StateType.RESOLVED || state === StateType.REJECTED,
+      isInitial: state === AsyncState.initial,
+      isPending: state === AsyncState.pending,
+      isResolved: state === AsyncState.resolved,
+      isRejected: state === AsyncState.rejected,
+      isFinished: state === AsyncState.resolved || state === AsyncState.rejected,
     };
   }, [state]);
 
@@ -145,7 +135,6 @@ export function useAsyncState<V, E>() {
   return {
     state: stateMemo,
     actions: actionsMemo,
-    origin,
     value,
     error,
   };

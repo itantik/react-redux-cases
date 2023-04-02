@@ -1,34 +1,34 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Abortable } from './Abortable';
 import { Result } from './Result';
+import { useAbortable } from './useAbortable';
 
-export type CaseResult<Res, Err> = Promise<Result<Res, Err>> | Result<Res, Err>;
+export type CaseResult<Res, Err> = Promise<Result<Res, Err>>;
 
-export type CaseOptions = Record<string, unknown> | undefined | null;
+export interface Case<Res, Err, P> extends Abortable {
+  execute(runParams: P): CaseResult<Res, Err>;
+}
 
-export type Case<Res, Err, P, O extends CaseOptions> = (
-  runParams: P,
-  options: O,
-  origin?: string,
-) => CaseResult<Res, Err>;
+export type CaseFactory<Res, Err, P> = () => Case<Res, Err, P>;
 
-export function useCase<Res, Err, P, O extends CaseOptions>(
-  caseFn: Case<Res, Err, P, O>,
-  options: O,
-  origin?: string,
-) {
-  const optionsRef = useRef(options);
+export function useCase<Res, Err, P>(caseFactory: CaseFactory<Res, Err, P>) {
+  const factoryRef = useRef(caseFactory);
   useEffect(() => {
-    optionsRef.current = options;
+    factoryRef.current = caseFactory;
   });
 
-  return useCallback(
-    (runParams: P, runOrigin?: string) => {
-      return caseFn(
-        runParams,
-        optionsRef.current ? { ...optionsRef.current } : optionsRef.current,
-        runOrigin || origin,
-      );
+  const { watch, unwatch, abort } = useAbortable();
+
+  const run = useCallback(
+    async (runParams: P) => {
+      const objCase = factoryRef.current();
+      watch(objCase);
+      const result = await objCase.execute(runParams);
+      unwatch(objCase);
+      return result;
     },
-    [caseFn, origin],
+    [unwatch, watch],
   );
+
+  return { run, abort };
 }

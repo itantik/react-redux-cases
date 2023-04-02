@@ -1,41 +1,39 @@
-export class Ok<V, E> {
+export class Ok<V> {
   /**
    * @param value - result value
-   * @param origin - identifies the origin from which the result came
    */
-  constructor(readonly value: V, readonly origin?: string) {}
+  constructor(readonly value: V) {}
 
-  isOk(): this is Ok<V, E> {
+  isOk(): this is Ok<V> {
     return true;
   }
 
-  isErr(): this is Err<V, E> {
-    return false;
+  isErr() {
+    return !this.isOk();
   }
 }
 
-export class Err<V, E> {
+export class Err<E> {
   /**
    * @param error - result error
-   * @param origin - identifies the origin from which the result came
    */
-  constructor(readonly error: E, readonly origin?: string) {}
+  constructor(readonly error: E) {}
 
-  isOk(): this is Ok<V, E> {
-    return false;
+  isOk() {
+    return !this.isErr();
   }
 
-  isErr(): this is Err<V, E> {
+  isErr(): this is Err<E> {
     return true;
   }
 }
 
-export type Result<V, E> = Ok<V, E> | Err<V, E>;
+export type Result<V, E> = Ok<V> | Err<E>;
 
-export function ok<V, E = never>(value: V, origin?: string): Ok<V, E> {
-  return new Ok(value, origin);
+export function ok<V>(value: V): Ok<V> {
+  return new Ok(value);
 }
 
-export function err<E, V = never>(error: E, origin?: string): Err<V, E> {
-  return new Err(error, origin);
+export function err<E>(error: E): Err<E> {
+  return new Err(error);
 }

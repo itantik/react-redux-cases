@@ -2,474 +2,515 @@
 
 Separating async business logic from user interface in React applications. Especially in those that use [Redux](https://redux.js.org/).
 
+The `react-redux-cases` library helps you extract plain business logic (i.e. cases) into independent classes. Library hooks connect these cases to React components. So it prevents mixing async fetching, state management, UI styling in a component. Instead, your components stay clear and simple.
+
 ## Installation
 
     $ npm install react-redux-cases
 
-Requires `react-redux`.
+Requires [react-redux](https://react-redux.js.org/).
 
-## Example
+## Usage
 
-In this example, we will show a use-case that requires access to the redux store and async state watching.
+### 1. Case Definition
 
-Imagine that an application displays a filtered list of user tasks. Our case is to get this list. The scenario may look like this:
+In terms of the `react-redux-cases` library, the case is a separate unit that covers one application feature. We might also call it an application service or a use case.
 
-- get user id from redux store
-- get filter string from input
-- call REST API service
-- send response data to redux store
-- watch the state during this process
-
-### 1. Case Function
-
-In terms of the `react-redux-cases` library, the case is a separate function that covers one business logic.
-
-Case gets all the required dependencies: connection to redux store, options and `run` parameters. `dispatch`, `getState` and `options` come from the `useReduxCaseState` hook. `runParams` comes from the `run` function. `origin` comes from the `run` function or the `useReduxCaseState` hook.
-
-Let's make our case function:
+The case is implemented as a class with interface:
 
 ```typescript
-async function loadTodoListCase(
-  dispatch: AppDispatch,
-  getState: AppGetState,
-  runParams: {
-    filter: string;
-  },
-  options: {},
-  origin?: string,
-) {
-  // get values from run params
-  const { filter } = runParams;
-
-  // get values from redux store
-  const state = getState();
-  const userId = state.user.id;
-
-  // call API
-  const result = await getTodoList(userId, filter, origin);
-
-  if (result.isOk()) {
-    // dispatch a redux action
-    dispatch(updateTodoList(result.value));
-  }
-
-  return result;
+interface Case<Res, Err, P> extends Abortable {
+  execute(runParams: P): CaseResult<Res, Err>;
+  onAbort?: () => void;
 }
 ```
 
-Example of API function:
+**Rule:** the `execute` method must not throw an exception. Instead, it returns the `Promise` of the `Result` object.
+
+Example of `Case`:
 
 ```typescript
-async function getTodoList(userId: string, filter: string, origin?: string) {
+import { Case } from 'react-redux-cases';
+import { AppDispatch, AppGetState, updateList } from './my/app/redux';
+import { Todo, apiGetTodoList } from './my/app/todo';
+
+class LoadTodoListCase implements Case<Todo[], Error, string> {
+  private dispatch: AppDispatch;
+  private getState: AppGetState;
+
+  // inject all dependencies in constructor
+  constructor(dispatch: AppDispatch, getState: AppGetState) {
+    this.dispatch = dispatch;
+    this.getState = getState;
+  }
+
+  // static factory method creates the LoadTodoListCase instance
+  static create(dispatch: AppDispatch, getState: AppGetState) {
+    return new LoadTodoListCase(dispatch, getState);
+  }
+
+  // use case implementation
+  async execute(todoFilter: string) {
+    // get state from redux store
+    const userId = this.getState().user.id;
+
+    // call async API
+    const result = await apiGetTodoList({ user: userId, filter: todoFilter });
+
+    if (result.isErr()) {
+      // manage error
+      console.log('SynchronizeTodoListCase:', result.error);
+
+      // return failed result
+      return result;
+    }
+
+    // manage successful result
+
+    // update redux store
+    this.dispatch(updateList(result.value.data));
+
+    // return successful result
+    return result;
+  }
+}
+```
+
+The core of this case is the mandatory function `execute`. As we can see, it implements the following scenario:
+
+- get the string `todoFilter` from the function parameter
+- get the ID of the user from the redux store
+- call the async API service `/list` to get filtered To-Do list data from backend server
+- on failure, log an error message
+- if successful, update redux store with new To-Do list
+- return `Result` object with To-Do list data
+
+This case is separated from the rest of the application. It declares all its dependencies in the `contructor`, making it well testable. Our case requires redux `getState` and `dispatch` methods.
+
+Static factory method `create` is not necessary but it is very useful.
+
+**Rule:** Factory method must create an instance and not throw an exception.
+
+### 2. Case Result
+
+The `execute` method must not throw an exception. Instead, it must return a `Result` object, which is a union type of a success or error value.
+
+```typescript
+type Result<V, E> = Ok<V> | Err<E>;
+```
+
+The `Ok` object wraps a `value` and offers it via the `result.value` getter.
+
+The `Err` object wraps an `error` and offers it via the `result.error` getter.
+
+Both `Ok` and `Err` objects implement `isOk()` and `isErr()` methods, which act as type guards.
+
+Examples of creating a `Result` instance:
+
+```typescript
+import { ok } from 'react-redux-cases';
+
+// Ok result
+const okResult = ok('success');
+
+if (okResult.isOk()) {
+  console.log(okResult.value); // -> 'success'
+}
+if (okResult.isErr()) {
+  // -> never
+}
+```
+
+```typescript
+import { err } from 'react-redux-cases';
+
+// Err result
+const errResult = err('error message');
+
+if (errResult.isErr()) {
+  console.log(errResult.error); // -> 'error message'
+}
+if (errResult.isOk()) {
+  // -> never
+}
+```
+
+Example of an API function that returns a `Result`:
+
+```typescript
+async function apiGetTodoList(
+  params: { user: string; filter: string },
+  abortController?: AbortController,
+) {
   try {
     const response: Awaited<AxiosResponse<Todo[]>> = await axios({
-      url: 'user-list',
-      params: { userId, filter },
+      method: 'get',
+      url: 'list',
+      params,
+      signal: abortController.signal,
     });
-    return ok(response.data, origin);
+    return ok(response.data);
   } catch (e) {
-    return err(e, origin);
+    return err(e);
   }
 }
 ```
 
-The function returns the `Result` object.
-
-A real application may call API services with its own perfectly tuned function. In this case, we can pass this helper function in the `options` parameter.
-
-### 2. Connection With a Component
-
-We will use one of the prepared hooks. We can choose from four hooks depending on whether we need access to redux store and/or watch the state of the async process. In this example, we need both.
+Usage in `execute` method:
 
 ```typescript
-function useLoadTodoList() {
-  return useReduxCaseState(loadTodoListCase, {});
+class LoadTodoListCase implements Case<Todo[], Error, string> {
+  // ...
+
+  async execute(todoFilter: string) {
+    // ...
+
+    // Result object
+    const result = await apiGetTodoList({ user: userId, filter: todoFilter });
+
+    if (result.isErr()) {
+      // result is Err object
+      // do something with result.error
+
+      return result;
+    }
+
+    // result is Ok object
+    // do something with result.value
+
+    return result;
+  }
 }
 ```
 
-Moreover, if the case requires it, we can pass additional values via the second parameter.
+No exception, just a simple object.
 
-The `useReduxCaseState` hook wraps our case, passes everything it needs and returns a state object:
+### 3. Connection With a Component
 
-- `value` - a data from API response; undefined if not resolved
-- `error` - an error; undefined if not rejected
-- `origin` - identification of the place from which the request originated; it comes from the case, if we defined it
-- `state`:
-  - `state` - `StateType`
-  - `isInitial` - the case has not yet started
-  - `isPending` - the case has been started
-  - `isResolved` - the case was successfully resolved
-  - `isRejected` - the case failed
-  - `isFinished` - the case is finished, i.e. isResolved or isRejected
-- `actions`: sets the state but does not call the case function
-  - `start` - sets the state to pending
-  - `resolve` - sets the state to resolved and saves the result value
-  - `reject` - sets the state to rejected and saves the error
-  - `reset` - sets the state to initial and resets both the result and the error value
-- `run` - this function is used by the component or other hooks to call the case
+Cases are independent pieces of code. How can we use them in React components?
 
-### 3. Use in Component
+As an adapter, we can choose from prepared library hooks `useCase`, `useCaseState`, `useReduxCase`, `useReduxCaseState`.
 
-Simplified component:
+Each of the hooks gets a Case factory method as a parameter. Factory method must create an instance and not throw an exception.
+
+The `useReduxCaseState` and `useReduxCase` hooks provide the Redux `getState` and `dispatch` methods as parameters for the factory methods.
+
+Examples of factory methods:
 
 ```typescript
-// in this example, list data comes from redux store
-const TodoList = ({ list }: { list: Todo[] }) => {
-  const { run, error, state } = useLoadTodoList();
-  const { isPending, isRejected } = state;
+// 1. example - using the static factory method
+const case1 = useReduxCaseState(LoadTodoListCase.create);
+```
 
-  const [filter, setFilter] = useState('');
+```typescript
+// 2. example - this is the equivalent expression, using a case constructor
+const case2 = useReduxCaseState((dispatch, getState) => new LoadTodoListCase(dispatch, getState));
+```
 
-  const handleChangeFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFilter = e.target.value;
-    setFilter(newFilter);
-    // run our case
-    run({ filter: newFilter });
+```typescript
+// 3. example - injecting an additional dependency into case
+const additionalDependency = useSomething();
+const case3 = useReduxCaseState((dispatch, getState) =>
+  LoadTodoListCase.create(dispatch, getState, additionalDependency),
+);
+```
+
+Each of four hooks creates a `run` function. React component then can call this `run` function to execute the case.
+
+The `run` function instantiates the `Case` object via its factory method, passes it all dependencies, calls the `execute` function with arguments passed to `run` function, and finally returns `Result` object.
+
+Moreover `useCaseState` and `useReduxCaseState` returns `state` object, so that the component can watch the async process state.
+
+Usage in component:
+
+```tsx
+import { useReduxCaseState } from 'react-redux-cases';
+import { LoadTodoListCase } from './my/app/todo';
+
+// list data comes from redux store
+const FilteredTodoList = ({ list }: { list: Todo[] }) => {
+  // make connection with our LoadTodoListCase
+  const { run, error, state } = useReduxCaseState(LoadTodoListCase.create);
+
+  const handleChangeFilter = (newFilter: string) => {
+    // run the execute(newFilter) method of the LoadTodoListCase
+    run(newFilter);
   };
 
   return (
     <>
-      <div>
-        <label>
-          Filter:
-          <input type="text" name="filter" value={filter} onChange={handleChangeFilter} />
-        </label>
-      </div>
+      <Filter onChange={handleChangeFilter} />
 
-      {isPending && <div>Loading...</div>}
-      {isRejected && <div>Loading failed: {String(error)}</div>}
+      {state.isPending && <Spinner />}
+      {!state.isPending && state.isRejected && <ErrorPanel>{String(error)}</ErrorPanel>}
 
-      <List list={list}>
+      <List list={list} />
     </>
   );
 };
 ```
 
-## API
+### 4. Comparison of Case Hooks
 
-### Hooks for functional cases
+| Hook                             |          Case Factory          | Async State Monitoring |
+| :------------------------------- | :----------------------------: | :--------------------: |
+| `useReduxCaseState(caseFactory)` | `(dispatch, getState) => Case` |          Yes           |
+| `useReduxCase(caseFactory)`      | `(dispatch, getState) => Case` |           No           |
+| `useCaseState(caseFactory)`      |          `() => Case`          |          Yes           |
+| `useCase(caseFactory)`           |          `() => Case`          |           No           |
 
-#### useReduxCaseState
+Besides, each hook returns functions:
 
-Creates a `run` callback for dispatching a case along with the result and state object.
+- `run: async (runParams) => Promise<Result>`
+- `abort: () => void`
 
-```typescript
-function useReduxCaseState<Res, Err, S, P, O extends CaseOptions>(
-  caseFn: ReduxCase<Res, Err, S, P, O>,
-  options: O,
-  origin?: string,
-): {
-  value: Res | undefined;
-  error: Err | undefined;
-  origin: string | undefined;
-  state: {
-    state: StateType;
-    isInitial: boolean;
-    isPending: boolean;
-    isResolved: boolean;
-    isRejected: boolean;
-    isFinished: boolean;
-  };
-  actions: {
-    start: (origin?: string) => void;
-    resolve: (value: Res, origin?: string) => void;
-    reject: (error: Err, origin?: string) => void;
-    reset: () => void;
-  };
-  run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
-};
-```
+### 5. Aborting of Cases
 
-`ReduxCase` obtains the redux `dispatch` and `getState` functions with additional arguments. `useReduxCaseState` passes all arguments to the case function. `runParams` comes from the `run` function.
+The `Case` interface offers `onAbort` method. When the component is unmounted, the `onAbort` method is callled. It is up to you how your case will behave in this situation. A common approach is to use [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) API.
+
+It is also possible to abort the case manually. All four hooks `useCase`, `useCaseState`, `useReduxCase`, `useReduxCaseState` provide an `abort` method that can be called in components.
+
+Example of the `LoadTodoListCase` with `AbortController`:
 
 ```typescript
-declare type ReduxCase<Res, Err, S, P, O extends CaseOptions> = (
-  dispatch: Dispatch,
-  getState: () => S,
-  runParams: P,
-  options: O,
-  origin?: string,
-) => CaseResult<Res, Err>;
-```
+class LoadTodoListCase implements Case<Todo[], Error, string> {
+  private dispatch: AppDispatch;
+  private getState: AppGetState;
+  private abortController?: AbortController;
 
-#### useReduxCase
-
-Creates a `run` callback for dispatching a case. It is a `useReduxCaseState` variant without state monitoring.
-
-```typescript
-function useReduxCase<Res, Err, S, P, O extends CaseOptions, Ex>(
-  caseFn: ReduxCase<Res, Err, S, P, O, Ex>,
-  options: O,
-  origin?: string,
-): (runParams: P, runOrigin?: string) => CaseResult<Res, Err>;
-```
-
-```typescript
-type CaseResult<Res, Err> = Promise<Result<Res, Err>> | Result<Res, Err>;
-```
-
-#### useCaseState
-
-Creates a `run` callback along with the result and state object. This is a general async case that does not use redux.
-
-```typescript
-function useCaseState<Res, Err, P, O extends CaseOptions>(
-  caseFn: Case<Res, Err, P, O>,
-  options: O,
-  origin?: string,
-): {
-  value: Res | undefined;
-  error: Err | undefined;
-  origin: string | undefined;
-  state: {
-    state: StateType;
-    isInitial: boolean;
-    isPending: boolean;
-    isResolved: boolean;
-    isRejected: boolean;
-    isFinished: boolean;
-  };
-  actions: {
-    start: (origin?: string) => void;
-    resolve: (value: Res, origin?: string) => void;
-    reject: (error: Err, origin?: string) => void;
-    reset: () => void;
-  };
-  run: (runParams: P, runOrigin?: string) => Promise<Result<Res, Err>>;
-};
-```
-
-```typescript
-type Case<Res, Err, P, O extends CaseOptions> = (
-  runParams: P,
-  options: O,
-  origin?: string,
-) => CaseResult<Res, Err>;
-```
-
-#### useCase
-
-Creates a `run` callback. It is a `useCaseState` variant without state monitoring.
-
-```typescript
-function useCase<Res, Err, P, O extends CaseOptions>(
-  caseFn: Case<Res, Err, P, O>,
-  options: O,
-  origin?: string,
-): (runParams: P, runOrigin?: string) => CaseResult<Res, Err>;
-```
-
-### Hooks for object cases
-
-Object case interface:
-
-```typescript
-interface ObjCase<Res, Err, P> {
-  execute(runParams: P, origin?: string): CaseResult<Res, Err>;
-}
-```
-
-Each `useObj*Case` hook creates a `run` callback that calls the `execute` method of the `ObjCase` instance.
-
-#### useObjReduxCaseState
-
-```typescript
-function useObjReduxCaseState<Res, Err, S, P>(
-  caseFactory: ReduxCaseFactory<Res, Err, S, P>,
-  origin?: string,
-): {
-  value: Res | undefined;
-  error: Err | undefined;
-  origin: string | undefined;
-  state: {
-    state: StateType;
-    isInitial: boolean;
-    isPending: boolean;
-    isResolved: boolean;
-    isRejected: boolean;
-    isFinished: boolean;
-  };
-  actions: {
-    start: (origin?: string | undefined) => void;
-    resolve: (value: Res, origin?: string | undefined) => void;
-    reject: (error: Err, origin?: string | undefined) => void;
-    reset: () => void;
-  };
-  run: (runParams: P, runOrigin?: string | undefined) => Promise<Result<Res, Err>>;
-};
-```
-
-`caseFactory` obtains the redux `dispatch` and `getState` functions and creates `ObjCase` object.
-
-```typescript
-declare type ReduxCaseFactory<Res, Err, S, P> = (
-  dispatch: Dispatch,
-  getState: () => S,
-) => ObjCase<Res, Err, P>;
-```
-
-#### useObjReduxCase
-
-Creates a `run` callback for dispatching a case. It is a `useObjReduxCaseState` variant without state monitoring.
-
-```typescript
-function useObjReduxCase<Res, Err, S, P>(
-  caseFactory: ReduxCaseFactory<Res, Err, S, P>,
-  origin?: string,
-): (runParams: P, runOrigin?: string | undefined) => CaseResult<Res, Err>;
-```
-
-#### useObjCaseState
-
-Creates a `run` callback along with the result and state object. This is a general async case that does not use redux.
-
-```typescript
-function useObjCaseState<Res, Err, P>(
-  caseFactory: CaseFactory<Res, Err, P>,
-  origin?: string,
-): {
-  value: Res | undefined;
-  error: Err | undefined;
-  origin: string | undefined;
-  state: {
-    state: StateType;
-    isInitial: boolean;
-    isPending: boolean;
-    isResolved: boolean;
-    isRejected: boolean;
-    isFinished: boolean;
-  };
-  actions: {
-    start: (origin?: string | undefined) => void;
-    resolve: (value: Res, origin?: string | undefined) => void;
-    reject: (error: Err, origin?: string | undefined) => void;
-    reset: () => void;
-  };
-  run: (runParams: P, runOrigin?: string | undefined) => Promise<Result<Res, Err>>;
-};
-```
-
-`caseFactory` creates `ObjCase` object.
-
-```typescript
-declare type CaseFactory<Res, Err, P> = () => ObjCase<Res, Err, P>;
-```
-
-#### useObjCase
-
-Creates a `run` callback. It is a `useObjCaseState` variant without state monitoring.
-
-```typescript
-function useObjCase<Res, Err, P>(
-  caseFactory: CaseFactory<Res, Err, P>,
-  origin?: string,
-): (runParams: P, runOrigin?: string | undefined) => CaseResult<Res, Err>;
-```
-
-##### Object case example
-
-```typescript
-// object case
-class SumObjCase {
-  constructor() {}
-
-  // case factory
-  static create() {
-    return new SumObjCase();
+  constructor(dispatch: AppDispatch, getState: AppGetState, abortController?: AbortController) {
+    this.dispatch = dispatch;
+    this.getState = getState;
+    this.abortController = abortController;
   }
 
-  // case execution
-  execute(runParams: { numberA: number; numberB: number }, origin?: string) {
-    return ok(runParams.numberA + runParams.numberB, origin);
+  static create(dispatch: AppDispatch, getState: AppGetState) {
+    return new LoadTodoListCase(dispatch, getState, new AbortController());
   }
-}
 
-// component
-const SumComponent = () => {
-  const [numberA, setNumberA] = useState(0);
-  const [numberB, setNumberB] = useState(0);
-  const sum = useObjCase(SumObjCase.create);
+  async execute(todoFilter: string) {
+    // ...
 
-  const handleSum = () => {
-    const result = sum({ numberA, numberB });
-    if (result.isOk()) {
-      console.log(`Sum = ${result.value}`);
+    // pass the AbortController signal to API
+    const result = await apiGetTodoList(
+      { user: userId, filter: todoFilter },
+      this.abortController?.signal,
+    );
+
+    if (result.isErr()) {
+      // aborted API request returns an error
+      console.log('apiGetTodoList error', result.error);
+      // the case ends, so redux is not updated
+      return result;
     }
+
+    this.dispatch(updateList(result.value.data));
+
+    return result;
+  }
+
+  onAbort() {
+    this.abortController?.abort();
+  }
+}
+```
+
+When we type a few characters in the filter input field, a series of request is sent. To prevent a request race, we need to abort old requests every time a new character is typed.
+
+Example of updated `FilteredTodoList` component:
+
+```tsx
+const FilteredTodoList = ({ list }: { list: Todo[] }) => {
+  const { run, error, state, abort } = useLoadTodoList();
+
+  const handleChangeFilter = (newFilter: string) => {
+    // abort previous requests
+    abort();
+    // make new request
+    run(newFilter);
   };
 
   // ...
 };
 ```
 
-### Result
+## API
 
-Union object of the result value or error.
+### useReduxCaseState
 
-```typescript
-type Result<V, E> = Ok<V, E> | Err<V, E>;
-```
+The `useReduxCaseState(caseFactory)` hook returns `run` and `abort` methods and values for state monitoring. Passes the Redux `dispatch` and `getState` methods to `caseFactory` as arguments.
 
-_Examples:_
+**Parameters**
 
-```typescript
-// Ok result
-const result = ok('test value');
+- `caseFactory`: `(dispatch, getState) => Case`
 
-if (result.isOk()) {
-  // handle result
-  console.log(result.value);
-}
-```
+**Returns**
 
-```typescript
-// Err result
-const result = err('test error message');
+Case controlling:
 
-if (result.isErr()) {
-  // handle error
-  console.log(result.error);
-}
-```
+- `run`: `async (runParams) => Promise<Result>` - use the `run(runParams)` method to invoke the `Case` `execute(runParams)` method
+- `abort`: `() => void` - calling the `abort()` method invokes the `Case` `onAbort()` method
 
-```typescript
-// Err result with the origin identifier
-const result = err('test error message', 'login-form');
+Async state monitoring:
 
-if (result.isErr()) {
-  // handle error
-  if (result.origin === 'login-form') {
-    console.log('login error', result.error);
-  } else {
-    console.log('unknown error', result.error);
-  }
-}
-```
+- `value`: resolved promise value from the `run` method, it is unwrapped `value` of the `Result` object
+- `error`: rejected promise value from the `run` method, it is unwrapped `error` of the `Result` object
+- `state`: state object
+  - `state`: 'initial' | 'pending' | 'resolved' | 'rejected'
+  - `isInitial`: boolean - true when no `run` has started
+  - `isPending`: boolean - true when `run` method is awaiting
+  - `isResolved`: boolean - true when `run` was resolved
+  - `isRejected`: boolean - true when `run` was rejected
+  - `isFinished`: boolean - true when `run` was resolved or rejected
+- `actions`: control the state manually (rarely usable)
+  - `start`: `() => void` - marks the state as 'pending'
+  - `resolve`: `(value) => void` - marks the state as 'resolved' and sets the resolved `value`
+  - `reject`: `(error) => void` - marks the state as 'rejected' and sets the rejected `error` value
+  - `reset`: `() => void` - marks the state as 'initial' and resets `value` and `error`
+
+### useReduxCase
+
+The `useReduxCase(caseFactory)` hook returns `run` and `abort` methods. Passes the Redux `dispatch` and `getState` methods to `caseFactory` as arguments.
+
+> This is similar to `useReduxCaseState`, but without state monitoring.
+
+**Parameters**
+
+- `caseFactory`: `(dispatch, getState) => Case`
+
+**Returns**
+
+- `run`: `async (runParams) => Promise<Result>`
+- `abort`: `() => void`
+
+### useCaseState
+
+The `useCaseState(caseFactory)` hook returns `run` and `abort` methods and values for state monitoring.
+
+> This is similar to `useReduxCaseState`, but without providing `dispatch` and `getState` methods for `caseFactory`.
+
+**Parameters**
+
+- `caseFactory`: `() => Case`
+
+**Returns**
+
+- `run`: `async (runParams) => Promise<Result>`
+- `abort`: `() => void`
+- `value`
+- `error`
+- `state`: `{state, isInitial, isPending, isResolved, isRejected, isFinished}`
+- `actions`: `{start, resolve, reject, reset}`
+
+### useCase
+
+The `useCase(caseFactory)` hook returns `run` and `abort` methods.
+
+> This is similar to `useReduxCaseState`, but without providing `dispatch` and `getState` methods for `caseFactory` and without state monitoring.
+
+**Parameters**
+
+- `caseFactory`: `() => Case`
+
+**Returns**
+
+- `run`: `async (runParams) => Promise<Result>`
+- `abort`: `() => void`
 
 ### useAsyncState
 
-Monitoring of the state of the async function call, with the result and error value and the origin identifier.
+`useAsyncState()` helps monitor the state of an async process. Hook stores the result value or error of an async process and its current state. It does not control the process itself.
+
+**Returns**
+
+- `value`: resolved value
+- `error`: rejected value
+- `state`: the state of the async process
+  - `state`: 'initial' | 'pending' | 'resolved' | 'rejected'
+  - `isInitial`: boolean - true when state is 'initial'
+  - `isPending`: boolean - true when state is 'pending'
+  - `isResolved`: boolean - true when state was 'resolved'
+  - `isRejected`: boolean - true when state was 'rejected'
+  - `isFinished`: boolean - true when state was 'resolved' or 'rejected'
+- `actions`: setting the state and result
+  - `start`: `() => void` - marks the state as 'pending'
+  - `resolve`: `(value) => void` - marks the state as 'resolved' and sets the resolved `value`
+  - `reject`: `(error) => void` - marks the state as 'rejected' and sets the rejected `error` value
+  - `reset`: `() => void` - marks the state as 'initial' and resets `value` and `error` to `undefined`
+
+### Result
+
+`Result` is a union type of the `Ok` or `Err` value.
 
 ```typescript
-function useAsyncState<V, E>(): {
-  state: {
-    state: StateType;
-    isInitial: boolean;
-    isPending: boolean;
-    isResolved: boolean;
-    isRejected: boolean;
-    isFinished: boolean;
-  };
-  actions: {
-    start: (origin?: string) => void;
-    resolve: (value: V, origin?: string) => void;
-    reject: (error: E, origin?: string) => void;
-    reset: () => void;
-  };
-  origin: string | undefined;
-  value: V | undefined;
-  error: E | undefined;
-};
+type Result<V, E> = Ok<V> | Err<E>;
 ```
+
+### Ok
+
+Class `Ok`. To create a new instance, you can use the constructor or prepared function `ok(value)`.
+
+Example with constructor:
+
+```typescript
+import { Ok } from 'react-redux-cases';
+const result = new Ok({ title: 'Success' });
+```
+
+Example with `ok()`:
+
+```typescript
+import { ok } from 'react-redux-cases';
+const result = ok({ title: 'Success' });
+```
+
+**Class members**
+
+- `constructor(value)`
+- `value`: readonly value
+- `isOk()`: type guard, returns true
+- `isErr()`: type guard, returns false
+
+### Err
+
+Class `Err`. To create a new instance, you can use the constructor or prepared function `err(value)`.
+
+Example with constructor:
+
+```typescript
+import { Err } from 'react-redux-cases';
+const result = new Err({ reason: 'Bad credentials' });
+```
+
+Example with `err()`:
+
+```typescript
+import { err } from 'react-redux-cases';
+const result = err({ reason: 'Bad credentials' });
+```
+
+**Class members**
+
+- `constructor(error)`
+- `error`: readonly error value
+- `isOk()`: type guard, returns false
+- `isErr()`: type guard, returns true
+
+### ok
+
+The `ok` function creates a new instance of the `Ok` class.
+
+- `ok`: `(value) => Ok`
+
+### err
+
+The `err` function creates a new instance of the `Err` class.
+
+- `err`: `(value) => Err`
+
+## Upgrading from version 0.x
+
+Although the purpose of this library has remained the same, it is not backward compatible with version 0.x. With care and appropriate effort, you can rewrite v0 hooks for object cases (`useObjReduxCaseState`, `useObjReduxCase`, `useObjCaseState`, `useObjCase`) with v1 hooks and cases. Hooks for functional cases are removed, so a refactoring to v1 object cases is required.
 
 ## License
 
