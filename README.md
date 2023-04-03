@@ -448,7 +448,7 @@ type Result<V, E> = Ok<V> | Err<E>;
 
 ### Ok
 
-Class `Ok`. To create a new instance, you can use the constructor or prepared function `ok(value)`.
+Class `Ok` wraps a `value` of any type. To create a new instance, you can use the constructor or helper function `ok(value)`.
 
 Example with constructor:
 
@@ -457,7 +457,7 @@ import { Ok } from 'react-redux-cases';
 const result = new Ok({ title: 'Success' });
 ```
 
-Example with `ok()`:
+Example with `ok(value)` function:
 
 ```typescript
 import { ok } from 'react-redux-cases';
@@ -466,14 +466,14 @@ const result = ok({ title: 'Success' });
 
 **Class members**
 
-- `constructor(value)`
+- `constructor(value)` - the `value` can be of any type
 - `value`: readonly value
 - `isOk()`: type guard, returns true
 - `isErr()`: type guard, returns false
 
 ### Err
 
-Class `Err`. To create a new instance, you can use the constructor or prepared function `err(value)`.
+Class `Err` wraps an `error` of any type. To create a new instance, you can use the constructor or helper function `err(error)`.
 
 Example with constructor:
 
@@ -482,7 +482,7 @@ import { Err } from 'react-redux-cases';
 const result = new Err({ reason: 'Bad credentials' });
 ```
 
-Example with `err()`:
+Example with `err(error)` function:
 
 ```typescript
 import { err } from 'react-redux-cases';
@@ -491,26 +491,26 @@ const result = err({ reason: 'Bad credentials' });
 
 **Class members**
 
-- `constructor(error)`
+- `constructor(error)` - the `error` can be of any type
 - `error`: readonly error value
 - `isOk()`: type guard, returns false
 - `isErr()`: type guard, returns true
 
 ### ok
 
-The `ok` function creates a new instance of the `Ok` class.
+The `ok(value)` helper function creates a new instance of the `Ok` class.
 
 - `ok`: `(value) => Ok`
 
 ### err
 
-The `err` function creates a new instance of the `Err` class.
+The `err(error)` helper function creates a new instance of the `Err` class.
 
-- `err`: `(value) => Err`
+- `err`: `(error) => Err`
 
 ## Upgrading from version 0.x
 
-Although the purpose of this library has remained the same, it is not backward compatible with version 0.x. With care and appropriate effort, you can rewrite v0 hooks for object cases (`useObjReduxCaseState`, `useObjReduxCase`, `useObjCaseState`, `useObjCase`) with v1 hooks and cases. Hooks for functional cases are removed, so a refactoring to v1 object cases is required.
+Although the purpose of this library has remained the same, it is not backward compatible with version 0.x. With care and appropriate effort, you can rewrite v0 hooks for object cases (`useObjReduxCaseState`, `useObjReduxCase`, `useObjCaseState`, `useObjCase`) with v1 hooks and cases. Hooks for functional cases are removed, so a refactoring to v1 object cases is necessary.
 
 ## License
 
