@@ -372,6 +372,10 @@ const FilteredTodoList = ({ list }: { list: Todo[] }) => {
 };
 ```
 
+## Example
+
+You can explore and try the [sample application](./example).
+
 ## API
 
 ### `useReduxCaseState(caseFactory)`
