@@ -5,7 +5,7 @@ import { useAbortable } from './useAbortable';
 
 export type CaseResult<Res, Err> = Promise<Result<Res, Err>>;
 
-export interface Case<Res, Err, P> extends Abortable {
+export interface Case<Res = unknown, Err = unknown, P = unknown> extends Abortable {
   execute(runParams: P): CaseResult<Res, Err>;
 }
 

@@ -19,8 +19,8 @@ In terms of the `react-redux-cases` library, the case is a separate unit that co
 The case is implemented as a class with interface:
 
 ```typescript
-interface Case<Res, Err, P> extends Abortable {
-  execute(runParams: P): CaseResult<Res, Err>;
+interface Case<Res, Err, P> {
+  execute(runParams: P): Promise<Result<Res, Err>>;
   onAbort?: () => void;
 }
 ```
@@ -34,7 +34,7 @@ import { Case } from 'react-redux-cases';
 import { AppDispatch, AppGetState, updateList } from './my/app/redux';
 import { Todo, apiGetTodoList } from './my/app/todo';
 
-class LoadTodoListCase implements Case<Todo[], Error, string> {
+class LoadTodoListCase implements Case {
   private dispatch: AppDispatch;
   private getState: AppGetState;
 
@@ -138,6 +138,9 @@ if (errResult.isOk()) {
 Example of an API function that returns a `Result`:
 
 ```typescript
+/**
+ * `apiGetTodoList` function returns the `Result` object
+ */
 async function apiGetTodoList(
   params: { user: string; filter: string },
   abortController?: AbortController,
@@ -154,12 +157,11 @@ async function apiGetTodoList(
     return err(e);
   }
 }
-```
 
-Usage in `execute` method:
-
-```typescript
-class LoadTodoListCase implements Case<Todo[], Error, string> {
+/**
+ * usage the `apiGetTodoList` function in `execute` method
+ */
+class LoadTodoListCase implements Case {
   // ...
 
   async execute(todoFilter: string) {
@@ -264,7 +266,43 @@ Besides, each hook returns functions:
 - `run: async (runParams) => Promise<Result>`
 - `abort: () => void`
 
-### 5. Aborting of Cases
+### 5. Chaining of Cases
+
+Cases may call other cases within the `execute` method. Components call such a compound case once and does not need to trigger a chain of cases using the `useEffect` hook.
+
+Example:
+
+```typescript
+class AddTodoItemCase implements Case {
+  // ...
+
+  async execute(todoItem: Todo) {
+    // call API
+    const result = await apiAddTodoItem({ item: todoItem });
+
+    if (result.isErr()) {
+      // result is Err object
+      // do something with result.error
+      return result;
+    }
+
+    // New item is created on backend,
+    // so we need to update the todo list.
+
+    // Create the LoadTodoListCase:
+    const loadCase = LoadTodoListCase.create(this.dispatch, this.getState);
+    // and execute it:
+    const loadingResult = await loadCase.execute('');
+    if (loadingResult.isErr()) {
+      return loadingResult;
+    }
+
+    return result;
+  }
+}
+```
+
+### 6. Aborting of Cases
 
 The `Case` interface offers `onAbort` method. When the component is unmounted, the `onAbort` method is callled. It is up to you how your case will behave in this situation. A common approach is to use [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) API.
 
@@ -273,7 +311,7 @@ It is also possible to abort the case manually. All four hooks `useCase`, `useCa
 Example of the `LoadTodoListCase` with `AbortController`:
 
 ```typescript
-class LoadTodoListCase implements Case<Todo[], Error, string> {
+class LoadTodoListCase implements Case {
   private dispatch: AppDispatch;
   private getState: AppGetState;
   private abortController?: AbortController;
@@ -336,13 +374,13 @@ const FilteredTodoList = ({ list }: { list: Todo[] }) => {
 
 ## API
 
-### useReduxCaseState
+### `useReduxCaseState(caseFactory)`
 
 The `useReduxCaseState(caseFactory)` hook returns `run` and `abort` methods and values for state monitoring. Passes the Redux `dispatch` and `getState` methods to `caseFactory` as arguments.
 
 **Parameters**
 
-- `caseFactory`: `(dispatch, getState) => Case`
+- `caseFactory`: `(dispatch, getState) => Case` - it must not throw an exception. The returned object should implement the `Case` interface.
 
 **Returns**
 
@@ -368,7 +406,7 @@ Async state monitoring:
   - `reject`: `(error) => void` - marks the state as 'rejected' and sets the rejected `error` value
   - `reset`: `() => void` - marks the state as 'initial' and resets `value` and `error`
 
-### useReduxCase
+### `useReduxCase(caseFactory)`
 
 The `useReduxCase(caseFactory)` hook returns `run` and `abort` methods. Passes the Redux `dispatch` and `getState` methods to `caseFactory` as arguments.
 
@@ -383,7 +421,7 @@ The `useReduxCase(caseFactory)` hook returns `run` and `abort` methods. Passes t
 - `run`: `async (runParams) => Promise<Result>`
 - `abort`: `() => void`
 
-### useCaseState
+### `useCaseState(caseFactory)`
 
 The `useCaseState(caseFactory)` hook returns `run` and `abort` methods and values for state monitoring.
 
@@ -402,7 +440,7 @@ The `useCaseState(caseFactory)` hook returns `run` and `abort` methods and value
 - `state`: `{state, isInitial, isPending, isResolved, isRejected, isFinished}`
 - `actions`: `{start, resolve, reject, reset}`
 
-### useCase
+### `useCase(caseFactory)`
 
 The `useCase(caseFactory)` hook returns `run` and `abort` methods.
 
@@ -417,28 +455,39 @@ The `useCase(caseFactory)` hook returns `run` and `abort` methods.
 - `run`: `async (runParams) => Promise<Result>`
 - `abort`: `() => void`
 
-### useAsyncState
+### `Case`
 
-`useAsyncState()` helps monitor the state of an async process. Hook stores the result value or error of an async process and its current state. It does not control the process itself.
+The `Case` is interface.
 
-**Returns**
+**Methods**
 
-- `value`: resolved value
-- `error`: rejected value
-- `state`: the state of the async process
-  - `state`: 'initial' | 'pending' | 'resolved' | 'rejected'
-  - `isInitial`: boolean - true when state is 'initial'
-  - `isPending`: boolean - true when state is 'pending'
-  - `isResolved`: boolean - true when state was 'resolved'
-  - `isRejected`: boolean - true when state was 'rejected'
-  - `isFinished`: boolean - true when state was 'resolved' or 'rejected'
-- `actions`: setting the state and result
-  - `start`: `() => void` - marks the state as 'pending'
-  - `resolve`: `(value) => void` - marks the state as 'resolved' and sets the resolved `value`
-  - `reject`: `(error) => void` - marks the state as 'rejected' and sets the rejected `error` value
-  - `reset`: `() => void` - marks the state as 'initial' and resets `value` and `error` to `undefined`
+- `execute`: `async (runParams) => Result` - async function returns the `Result` object. It must not throw an exception. The `run` method of the hooks calls the `execute` method of the case.
+- `onAbort`: `() => void` - method is optional. The `abort` method of the hooks calls the `onAbort` method of the case.
 
-### Result
+Example:
+
+```typescript
+import { Case, ok } from 'react-redux-cases';
+
+class MyCase implements Case {
+  constructor(readonly dispatch: AppDispatch, readonly getState: AppGetState) {}
+
+  // static factory method
+  static create(dispatch: AppDispatch, getState: AppGetState) {
+    return new MyCase(dispatch, getState);
+  }
+
+  // use case implementation
+  async execute(param: string) {
+    // ...
+
+    // return Result
+    return ok(someResult);
+  }
+}
+```
+
+### `Result`
 
 `Result` is a union type of the `Ok` or `Err` value.
 
@@ -446,7 +495,7 @@ The `useCase(caseFactory)` hook returns `run` and `abort` methods.
 type Result<V, E> = Ok<V> | Err<E>;
 ```
 
-### Ok
+### `Ok`
 
 Class `Ok` wraps a `value` of any type. To create a new instance, you can use the constructor or helper function `ok(value)`.
 
@@ -471,7 +520,7 @@ const result = ok({ title: 'Success' });
 - `isOk()`: type guard, returns true
 - `isErr()`: type guard, returns false
 
-### Err
+### `Err`
 
 Class `Err` wraps an `error` of any type. To create a new instance, you can use the constructor or helper function `err(error)`.
 
@@ -496,17 +545,38 @@ const result = err({ reason: 'Bad credentials' });
 - `isOk()`: type guard, returns false
 - `isErr()`: type guard, returns true
 
-### ok
+### `ok(value)`
 
 The `ok(value)` helper function creates a new instance of the `Ok` class.
 
 - `ok`: `(value) => Ok`
 
-### err
+### `err(error)`
 
 The `err(error)` helper function creates a new instance of the `Err` class.
 
 - `err`: `(error) => Err`
+
+### `useAsyncState()`
+
+`useAsyncState()` helps monitor the state of an async process. Hook stores the result value or error of an async process and its current state. It does not control the process itself.
+
+**Returns**
+
+- `value`: resolved value
+- `error`: rejected value
+- `state`: the state of the async process
+  - `state`: 'initial' | 'pending' | 'resolved' | 'rejected'
+  - `isInitial`: boolean - true when state is 'initial'
+  - `isPending`: boolean - true when state is 'pending'
+  - `isResolved`: boolean - true when state was 'resolved'
+  - `isRejected`: boolean - true when state was 'rejected'
+  - `isFinished`: boolean - true when state was 'resolved' or 'rejected'
+- `actions`: setting the state and result
+  - `start`: `() => void` - marks the state as 'pending'
+  - `resolve`: `(value) => void` - marks the state as 'resolved' and sets the resolved `value`
+  - `reject`: `(error) => void` - marks the state as 'rejected' and sets the rejected `error` value
+  - `reset`: `() => void` - marks the state as 'initial' and resets `value` and `error` to `undefined`
 
 ## Upgrading from version 0.x
 
