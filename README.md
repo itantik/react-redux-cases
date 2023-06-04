@@ -308,6 +308,8 @@ The `Case` interface offers `onAbort` method. When the component is unmounted, t
 
 It is also possible to abort the case manually. All four hooks `useCase`, `useCaseState`, `useReduxCase`, `useReduxCaseState` provide an `abort` method that can be called in components.
 
+Aborted case does not change any of the `value`, `error`, `state` values returned from the `useCaseState` or `useReduxCaseState` hook. E.g. manually aborted pending case remains pending. Therefore, the last properly finished case will return the correct `value`, `error` and `state`.
+
 Example of the `LoadTodoListCase` with `AbortController`:
 
 ```typescript
@@ -342,6 +344,7 @@ class LoadTodoListCase implements Case {
       return result;
     }
 
+    // update redux state
     this.dispatch(updateList(result.value.data));
 
     return result;

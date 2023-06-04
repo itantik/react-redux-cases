@@ -1,31 +1,6 @@
 import { renderHook } from '@testing-library/react';
-import { Err, err, Ok, ok, useCase } from '../src';
-import { waitPlease } from './testUtils';
-
-type TestCaseOptions = { testOption: string };
-
-class TestCase {
-  constructor(private options: TestCaseOptions) {}
-
-  // case factory
-  static create(options?: TestCaseOptions) {
-    return new TestCase(options || { testOption: 'once' });
-  }
-
-  async execute(runParams: { runParam: number }) {
-    await waitPlease(10);
-    switch (this.options.testOption) {
-      case 'once':
-        return ok(`Once - ${runParams.runParam}`);
-      case 'double':
-        return ok(`Double - ${runParams.runParam * 2}`);
-      case 'triple':
-        return ok(`Triple - ${runParams.runParam * 3}`);
-      default:
-        return err(new Error('Invalid testOption value'));
-    }
-  }
-}
+import { Err, Ok, useCase } from '../src';
+import { TestCase } from './TestCase';
 
 test('useCase() creates the case function', async () => {
   const { result } = renderHook(() =>
@@ -70,6 +45,7 @@ test('useCase() executes with Ok result', async () => {
   const caseResult1 = await result.current.run({ runParam: 5 });
   expect(caseResult1.isOk() && caseResult1.value).toBe('Double - 10');
   expect(caseResult1).toBeInstanceOf(Ok);
+  expect(caseResult1.isErr()).toBe(false);
 
   // execute the case
   const caseResult2 = await result.current.run({ runParam: 3 });
@@ -86,4 +62,22 @@ test('useCase() executes with Err result', async () => {
   expect(caseResult).toBeInstanceOf(Err);
   expect(caseResult.isErr() && caseResult.error).toBeInstanceOf(Error);
   expect(caseResult.isErr() && caseResult.error.message).toBe('Invalid testOption value');
+  expect(caseResult.isOk()).toBe(false);
+});
+
+test('useCase() calls the onAbort method when aborts the case', async () => {
+  const onAbortMock = jest.spyOn(TestCase.prototype, 'onAbort');
+
+  const { result } = renderHook(() => useCase(TestCase.create));
+
+  // execute the case
+  const caseResult = result.current.run({ runParam: 5 });
+
+  result.current.abort();
+
+  expect(onAbortMock.mock.calls.length).toBe(1);
+
+  const caseResultAwaited = await caseResult;
+  expect(caseResultAwaited.isErr() && caseResultAwaited.error).toBeInstanceOf(Error);
+  expect(caseResultAwaited.isErr() && caseResultAwaited.error.message).toBe('Aborted');
 });
