@@ -8,8 +8,8 @@ export class Ok<V> {
     return true;
   }
 
-  isErr() {
-    return !this.isOk();
+  isErr(): this is never {
+    return false;
   }
 }
 
@@ -19,8 +19,8 @@ export class Err<E> {
    */
   constructor(readonly error: E) {}
 
-  isOk() {
-    return !this.isErr();
+  isOk(): this is never {
+    return false;
   }
 
   isErr(): this is Err<E> {

@@ -1,7 +1,7 @@
 {
   "name": "react-redux-cases",
   "description": "Separating async use-case logic from the UI in React applications.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Stanislav Antoš",
   "license": "MIT",
   "repository": {
