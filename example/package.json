@@ -1,7 +1,7 @@
 {
   "name": "react-redux-cases-example",
   "description": "A sample application using the react-redux-cases library.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Stanislav Antoš",
   "license": "MIT",
   "dependencies": {
@@ -16,7 +16,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-redux": "^8.0.5",
-    "react-redux-cases": "^1.0.1",
+    "react-redux-cases": "^1.0.2",
     "react-scripts": "5.0.1",
     "typescript": "^4.9.4",
     "uuid": "^9.0.0"
